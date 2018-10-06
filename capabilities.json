@@ -65,7 +65,12 @@
                     "select": [
                         { "for" : { "in": "horizontalCategory" } },
                         { "for": { "in": "verticalCategory" } }
-                    ]
+                    ],
+                    "dataReductionAlgorithm": {
+                        "top": {
+                            "count": 30000
+                        }
+                    }
                 }
             }
         }

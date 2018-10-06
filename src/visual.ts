@@ -111,10 +111,9 @@ module powerbi.extensibility.visual {
         private lastSelected: number;
 
         constructor(options: VisualConstructorOptions) {
-            console.log('Visual constructor', options);
             this.host = options.host;
             this.selectionManager = options.host.createSelectionManager();
-            this.lastSelected = 1;
+            this.lastSelected = 0;
             
             this.svg = d3.select(options.element).append("svg")
                  .attr("width","100%")
@@ -163,8 +162,6 @@ module powerbi.extensibility.visual {
             
             let viewModel = this.viewModel = visualTransform(options, this.host);
             this.settings = Visual.parseSettings(options && options.dataViews && options.dataViews[0]);
-            console.log('Visual update', options);
-            console.log('Selection Manager', this.selectionManager);
 
             this.controlsSVG
                 .attr("viewBox","0 0 150 150")
@@ -172,32 +169,28 @@ module powerbi.extensibility.visual {
         }
 
         public step(direction: string, step: number) {
-            console.log(direction);
-            console.log(step);
-            console.log('Vertical', this.viewModel.verticalDataPoints);
-            console.log('Horizontal', this.viewModel.horizontalDataPoints);
-
             //gives an array with unique verticalDataPoints
-            var uniqueSetCount = [];
+            var uniqueVerticalCount = [];
             for (let i = 0; i < this.viewModel.verticalDataPoints.length; i++) {
-                if (uniqueSetCount.indexOf(this.viewModel.verticalDataPoints[i].category) == -1 ) {
-                    uniqueSetCount.push(this.viewModel.verticalDataPoints[i].category);
+                if (uniqueVerticalCount.indexOf(this.viewModel.verticalDataPoints[i].category) == -1 ) {
+                    uniqueVerticalCount.push(this.viewModel.verticalDataPoints[i].category);
                 }
             }
-            console.log(uniqueSetCount.length)
 
             //Check if selection is within limits
             if(direction == "v")
             {
-                if ((this.lastSelected + step) < 0 || (this.lastSelected + step) > (this.viewModel.verticalDataPoints.length-1)) return;
+                let currentGroup = Math.floor(this.lastSelected / uniqueVerticalCount.length);
+                let minGroup = currentGroup * uniqueVerticalCount.length;
+                let maxGroup = (currentGroup + 1) * uniqueVerticalCount.length - 1;
+                if ((this.lastSelected + step) < minGroup || (this.lastSelected + step) > maxGroup) return;
                 this.lastSelected = this.lastSelected + step;
                 this.selectionManager.select(this.viewModel.verticalDataPoints[this.lastSelected].selectionId);
             }
-
-            if(direction == "h")
+            else if(direction == "h")
             {
-                if ((this.lastSelected + step*uniqueSetCount.length) < 0 || (this.lastSelected + step*uniqueSetCount.length) > (this.viewModel.horizontalDataPoints.length-1)) return;
-                this.lastSelected = this.lastSelected + step*uniqueSetCount.length;
+                if ((this.lastSelected + step*uniqueVerticalCount.length) < 0 || (this.lastSelected + step*uniqueVerticalCount.length) > (this.viewModel.horizontalDataPoints.length-1)) return;
+                this.lastSelected = this.lastSelected + step*uniqueVerticalCount.length;
                 this.selectionManager.select(this.viewModel.horizontalDataPoints[this.lastSelected].selectionId);
             }
         }

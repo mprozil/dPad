@@ -12,47 +12,31 @@
         }
     ],
     "objects": {
-        "dataPoint": {
-            "displayName": "Data colors",
+        "settings": {
+            "displayName": "D-Pad Settings",
             "properties": {
-                "defaultColor": {
-                    "displayName": "Default color",
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
+                "horizontal": {
+                    "displayName": "Horizontal Arrows",
+                    "type": { 
+                        "bool": true 
+                     }
                 },
-                "showAllDataPoints": {
-                    "displayName": "Show all",
+                "vertical": {
+                    "displayName": "Vertical Arrows",
+                    "type": { 
+                        "bool": true 
+                     }
+                },
+                "diagonal": {
+                    "displayName": "Diagonal Arrows",
                     "type": {
                         "bool": true
                     }
                 },
-                "fill": {
-                    "displayName": "Fill",
+                 "incremental": {
+                    "displayName": "Incremental Value",
                     "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "fillRule": {
-                    "displayName": "Color saturation",
-                    "type": {
-                        "fill": {}
-                    }
-                },
-                 "fontSize": {
-                    "displayName": "Text Size",
-                    "type": {
-                        "formatting": {
-                            "fontSize": true
-                        }
+                        "integer": true
                     }
                 }
             }

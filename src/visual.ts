@@ -49,6 +49,8 @@ module powerbi.extensibility.visual {
     interface ViewModel {
         horizontalDataPoints: CategoryDataPoint[];
         verticalDataPoints: CategoryDataPoint[];
+        numberOfAxis: number;
+        sortedBy: String;
         settings: VisualSettings;
     };
 
@@ -81,12 +83,49 @@ module powerbi.extensibility.visual {
     function visualTransform(options: VisualUpdateOptions, host: IVisualHost): ViewModel {
         let dataViews = options.dataViews;
         
-        let categorical = dataViews[0].categorical;
-        let horizontalCategory = categorical.categories[0];
-        let verticalCategory = categorical.categories[1];
+        let horizontalIdxInCategories = -1;
+        let verticalIdxInCategories = -1;
+        let horizontalDisplayName = "";
+        let verticalDisplayName = "";
+        let sortedBy = "";
 
-        let horizontalDataPoints: CategoryDataPoint[] = [];
-        let verticalDataPoints: CategoryDataPoint[] = [];
+        //TODO: Refactoring    
+        for (let i = 0; i < options.dataViews[0].metadata.columns.length; i++) {
+            if (options.dataViews[0].metadata.columns[i].roles.hasOwnProperty('horizontalCategory')) {
+                horizontalDisplayName = options.dataViews[0].metadata.columns[i].displayName;
+                if(i == 0) sortedBy = "horizontal";
+            }
+            else if (options.dataViews[0].metadata.columns[i].roles.hasOwnProperty('verticalCategory')) {
+                verticalDisplayName = options.dataViews[0].metadata.columns[i].displayName;
+                if(i == 0) sortedBy = "vertical";
+            }                
+        }
+
+        for (let i = 0; i < dataViews[0].categorical.categories.length; i++)
+        {
+            if (dataViews[0].categorical.categories[i].source.displayName == horizontalDisplayName)
+                horizontalIdxInCategories = i;
+            else if (dataViews[0].categorical.categories[i].source.displayName == verticalDisplayName)
+                verticalIdxInCategories = i;
+        }
+
+        let horizontalValues: PrimitiveValue[] = [];
+        let verticalValues: PrimitiveValue[] = [];
+        let horizontalCategory: DataViewCategoryColumn;
+        let verticalCategory: DataViewCategoryColumn;
+        let numberOfAxis = 0;
+
+        if (horizontalIdxInCategories > -1) {
+            horizontalCategory = dataViews[0].categorical.categories[horizontalIdxInCategories];
+            horizontalValues = horizontalCategory.values;
+            numberOfAxis++;
+        }
+        
+        if (verticalIdxInCategories > -1) {
+            verticalCategory = dataViews[0].categorical.categories[verticalIdxInCategories];
+            verticalValues = verticalCategory.values;
+            numberOfAxis++;
+        }
         
         let colorPalette: IColorPalette = host.colorPalette;
         let objects = dataViews[0].metadata.objects;
@@ -99,28 +138,54 @@ module powerbi.extensibility.visual {
                 incremental: getValue<number>(objects, 'settings', 'incremental', 1)
             }
         }
-        // TODO one cycle
-        for (let i = 0, len = Math.max(horizontalCategory.values.length); i < len; i++) {
-            horizontalDataPoints.push({
-                category: horizontalCategory.values[i] + '',
+        
+        let dataPoints: CategoryDataPoint[] = [];
+        let horizontalDataPoints: CategoryDataPoint[] = [];
+        let verticalDataPoints: CategoryDataPoint[] = [];
+        
+
+        // Set of data points. Can have data for 1 or 2 axis (in this case the 
+        // keys will be the axis on category 0)
+        /*
+        let valuesToBeTransformed = dataViews[0].categorical.categories[0].values;
+        for (let i = 0, len = Math.max(valuesToBeTransformed.length); i < len; i++) {
+            dataPoints.push({
+                category: valuesToBeTransformed[i] + '',
                 selectionId: host.createSelectionIdBuilder()
                     .withCategory(horizontalCategory, i)
                     .createSelectionId()
             });
-        }
-      
-        for (let i = 0, len = Math.max(verticalCategory.values.length); i < len; i++) {
-            verticalDataPoints.push({
-                category: verticalCategory.values[i] + '',
-                selectionId: host.createSelectionIdBuilder()
-                    .withCategory(verticalCategory, i)
-                    .createSelectionId()
-            });
-        }
+        }*/
+
+       if (horizontalIdxInCategories > -1)
+       {
+            for (let i = 0, len = Math.max(horizontalCategory.values.length); i < len; i++) {
+                horizontalDataPoints.push({
+                    category: horizontalCategory.values[i] + '',
+                    selectionId: host.createSelectionIdBuilder()
+                        .withCategory(horizontalCategory, i)
+                        .createSelectionId()
+                });
+            }
+       }
+
+       if (verticalIdxInCategories > -1)
+       {
+           for (let i = 0, len = Math.max(verticalCategory.values.length); i < len; i++) {
+                verticalDataPoints.push({
+                    category: verticalCategory.values[i] + '',
+                    selectionId: host.createSelectionIdBuilder()
+                        .withCategory(verticalCategory, i)
+                        .createSelectionId()
+                });
+            }
+       }
 
         return {
             horizontalDataPoints: horizontalDataPoints,
             verticalDataPoints: verticalDataPoints,
+            numberOfAxis: numberOfAxis,
+            sortedBy: sortedBy,
             settings: visualSettings
         };
     }
@@ -134,7 +199,7 @@ module powerbi.extensibility.visual {
         private selectionManager: ISelectionManager;
         private viewModel: ViewModel;
         private lastSelected: number;
-
+        
         constructor(options: VisualConstructorOptions) {
             this.host = options.host;
             this.selectionManager = options.host.createSelectionManager();
@@ -238,31 +303,77 @@ module powerbi.extensibility.visual {
     }
 
         public step(direction: string, step: number) {
-            let incremental = this.viewModel.settings.settings.incremental;
+            let incremental = this.visualSettings.settings.incremental;
             let incrementalStep = incremental*step;
+
             //gives an array with unique verticalDataPoints
-            var uniqueVerticalCount = [];
+            let uniqueVerticalCount = [];
             for (let i = 0; i < this.viewModel.verticalDataPoints.length; i++) {
                 if (uniqueVerticalCount.indexOf(this.viewModel.verticalDataPoints[i].category) == -1 ) {
                     uniqueVerticalCount.push(this.viewModel.verticalDataPoints[i].category);
                 }
             }
 
-            //Check if selection is within limits
-            if(direction == "v")
+            //gives an array with unique horizontalDataPoints
+            let uniqueHorizontalCount = [];
+            for (let i = 0; i < this.viewModel.horizontalDataPoints.length; i++) {
+                if (uniqueHorizontalCount.indexOf(this.viewModel.horizontalDataPoints[i].category) == -1 ) {
+                    uniqueHorizontalCount.push(this.viewModel.horizontalDataPoints[i].category);
+                }
+            }
+
+
+            let dataPointsToUse = this.viewModel.sortedBy == "horizontal" ? this.viewModel.horizontalDataPoints 
+                                                                          : this.viewModel.verticalDataPoints;
+
+             //TODO: Refactoring 
+            if(direction == "v" && this.viewModel.sortedBy == "horizontal")
             {
+                let numberOfPoints = this.viewModel.verticalDataPoints.length;
+                if (numberOfPoints == 0 ) return;
                 let currentGroup = Math.floor(this.lastSelected / uniqueVerticalCount.length);
                 let minGroup = currentGroup * uniqueVerticalCount.length;
                 let maxGroup = (currentGroup + 1) * uniqueVerticalCount.length - 1;
                 if ((this.lastSelected + incrementalStep) < minGroup || (this.lastSelected + incrementalStep) > maxGroup) return;
                 this.lastSelected = this.lastSelected + incrementalStep;
-                this.selectionManager.select(this.viewModel.verticalDataPoints[this.lastSelected].selectionId);
+                this.selectionManager.select(dataPointsToUse[this.lastSelected].selectionId);
             }
-            else if(direction == "h")
+            else if(direction == "h" && this.viewModel.sortedBy == "horizontal")
             {
-                if ((this.lastSelected + incrementalStep*uniqueVerticalCount.length) < 0 || (this.lastSelected + incrementalStep*uniqueVerticalCount.length) > (this.viewModel.horizontalDataPoints.length-1)) return;
-                this.lastSelected = this.lastSelected + incrementalStep*uniqueVerticalCount.length;
-                this.selectionManager.select(this.viewModel.horizontalDataPoints[this.lastSelected].selectionId);
+                let numberOfPoints = this.viewModel.horizontalDataPoints.length;
+                if (numberOfPoints == 0 ) return;
+                if (this.viewModel.verticalDataPoints.length == 0) {
+                    if ((this.lastSelected + incrementalStep) < 0 || (this.lastSelected + incrementalStep) > (numberOfPoints-1)) return;
+                    this.lastSelected = this.lastSelected + incrementalStep;    
+                } else {
+                    if ((this.lastSelected + incrementalStep*uniqueVerticalCount.length) < 0 || (this.lastSelected + incrementalStep*uniqueVerticalCount.length) > (numberOfPoints-1)) return;
+                    this.lastSelected = this.lastSelected + incrementalStep*uniqueVerticalCount.length;
+                }
+                this.selectionManager.select(dataPointsToUse[this.lastSelected].selectionId);
+            }
+            else if(direction == "v" && this.viewModel.sortedBy == "vertical")
+            {
+                let numberOfPoints = this.viewModel.verticalDataPoints.length;
+                if (numberOfPoints == 0 ) return;
+                if (this.viewModel.horizontalDataPoints.length == 0) {
+                    if ((this.lastSelected + incrementalStep) < 0 || (this.lastSelected + incrementalStep) > (numberOfPoints-1)) return;
+                    this.lastSelected = this.lastSelected + incrementalStep;    
+                } else {
+                    if ((this.lastSelected + incrementalStep*uniqueHorizontalCount.length) < 0 || (this.lastSelected + incrementalStep*uniqueHorizontalCount.length) > (numberOfPoints-1)) return;
+                    this.lastSelected = this.lastSelected + incrementalStep*uniqueHorizontalCount.length;
+                }
+                this.selectionManager.select(dataPointsToUse[this.lastSelected].selectionId);
+            }
+            else if(direction == "h" && this.viewModel.sortedBy == "vertical")
+            {
+                let numberOfPoints = this.viewModel.horizontalDataPoints.length;
+                if (numberOfPoints == 0 ) return;
+                let currentGroup = Math.floor(this.lastSelected / uniqueHorizontalCount.length);
+                let minGroup = currentGroup * uniqueHorizontalCount.length;
+                let maxGroup = (currentGroup + 1) * uniqueHorizontalCount.length - 1;
+                if ((this.lastSelected + incrementalStep) < minGroup || (this.lastSelected + incrementalStep) > maxGroup) return;
+                this.lastSelected = this.lastSelected + incrementalStep;
+                this.selectionManager.select(dataPointsToUse[this.lastSelected].selectionId);
             }
         }
 

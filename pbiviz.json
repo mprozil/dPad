@@ -4,7 +4,7 @@
     "displayName": "DPad",
     "guid": "dPad295F126A4F5A49E7A29FE46C93DE9086",
     "visualClassName": "Visual",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Directional Pad",
     "supportUrl": "https://github.com/mprozil/DPad/issues",
     "gitHubUrl": "https://github.com/mprozil/DPad"
